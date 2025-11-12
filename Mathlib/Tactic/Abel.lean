@@ -545,3 +545,33 @@ We register `abel` with the `hint` tactic.
 -/
 
 register_hint abel
+
+
+open Mathlib TacticAnalysis Lean
+
+
+/--
+Define a pass that tries replacing a specific tactic with `abel`.
+
+`tacticName` is a human-readable name for the tactic, for example "linarith".
+This can be used to group messages together, so that `ring`, `ring_nf`, `ring1`, ...
+all produce the same message.
+
+`tacticKind` is the `SyntaxNodeKind` for the tactic's main parser,
+for example `Mathlib.Tactic.linarith`.
+-/
+def abelReplacementWith (tacticName : String) (tacticKind : SyntaxNodeKind)
+    (reportFailure : Bool := false) (reportSuccess : Bool := true)
+    (reportSlowdown : Bool := true) (maxSlowdown : Float := 1) :
+    TacticAnalysis.Config :=
+  terminalReplacement tacticName "abel" tacticKind (fun _ _ _ => `(tactic| abel))
+    reportFailure reportSuccess reportSlowdown maxSlowdown
+
+
+/-- Debug `abel` by identifying places where it does not yet supersede `ring`. -/
+register_option linter.tacticAnalysis.regressions.ringToAbel : Bool := {
+  defValue := true
+}
+@[tacticAnalysis linter.tacticAnalysis.regressions.ringToAbel,
+  inherit_doc linter.tacticAnalysis.regressions.ringToAbel]
+def ringToAbelRegressions := abelReplacementWith "ring" `Mathlib.Tactic.RingNF.ring
