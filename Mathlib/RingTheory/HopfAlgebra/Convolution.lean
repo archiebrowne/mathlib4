@@ -38,6 +38,24 @@ namespace HopfAlgebra
 section Semiring
 variable [Semiring A] [HopfAlgebra R A]
 
+
+
+
+/-
+This says that:
+
+A ⊗ A → A ⊗ A → A → A
+    flip     mul  S
+
+is equal to:
+
+A ⊗ A → A ⊗ A → A
+    S ⊗ S    mul
+
+i.e
+
+S(a)S(b) = S(ba) (and also so on tensors), that S is an antihomomorphism!
+-/
 lemma antipode_comp_mul_comp_comm :
     antipode R ∘ₗ .mul' R A ∘ₗ (TensorProduct.comm R A A).toLinearMap =
       .mul' R A ∘ₗ map (antipode R) (antipode R) := by
@@ -54,6 +72,7 @@ lemma antipode_comp_mul_comp_comm :
       ← (Algebra.commute_algebraMap_left (ε a) (_ : A)).left_comm,
       ← (Algebra.commute_algebraMap_left (ε a) (_ : A)).eq]
 
+-- `congr` can be used to prove facts about applying function equality lemma to elements
 lemma antipode_mul_antidistrib (a b : A) : antipode R (a * b) = antipode R b * antipode R a := by
   exact congr($antipode_comp_mul_comp_comm (b ⊗ₜ a))
 
@@ -66,11 +85,12 @@ def antipodeAlgHomOp : A →ₐ[R] Aᵐᵒᵖ := .ofLinearMap
     ((MulOpposite.opLinearEquiv R).toLinearMap ∘ₗ antipode R)
     (MulOpposite.op_injective (by simp))
     (fun x y ↦ MulOpposite.op_injective (by simp [antipode_mul_antidistrib]))
-
+-- ᵐᵒᵖ denotes the multiplicative opposite of a type.
+-- the antipote is an algebra homomorphism between these.
 end Semiring
 
 variable [CommSemiring A] [HopfAlgebra R A]
-
+-- when A is additionally comutative, it is true that the antipode is a homomorphism.
 lemma antipode_mul_distrib (a b : A) : antipode R (a * b) = antipode R a * antipode R b := by
   rw [antipode_mul_antidistrib, mul_comm]
 
@@ -86,22 +106,28 @@ end HopfAlgebra
 namespace LinearMap
 
 variable [Semiring C] [HopfAlgebra R C]
-
+-- antipode is left convolution inverse to 1 (isn't this just an axiom?)
 @[simp] lemma antipode_mul_id : toConv (antipode R (A := C)) * toConv id = 1 := by
-  ext c; rw [(ℛ R c).convMul_apply]; simp [sum_antipode_mul_eq_algebraMap_counit (ℛ R c)]
-
+  ext _; exact congr($HopfAlgebra.mul_antipode_rTensor_comul _)
+-- antipode is right convolution inverse to 1 (isn't this just an axiom?)
 @[simp] lemma id_mul_antipode : toConv id * toConv (antipode R (A := C)) = 1 := by
-  ext c; rw [(ℛ R c).convMul_apply]; simp [sum_mul_antipode_eq_algebraMap_counit (ℛ R c)]
+  ext _; exact congr($HopfAlgebra.mul_antipode_lTensor_comul _)
+-- (yes to both, the above are my new proofs)
+
 
 end LinearMap
 
 namespace LinearMap
 variable [Semiring C] [HopfAlgebra R C]
 
-local notation "𝑺" => antipode R (A := C)
-local notation "𝑭" => δ ∘ₗ 𝑺
+local notation "𝑺" => antipode R (A := C) -- S : A → A
+local notation "𝑭" => δ ∘ₗ 𝑺 -- comul ∘ S : A → A ⊗ A
 local notation "𝑮" => (𝑺 ⊗ₘ 𝑺) ∘ₗ TensorProduct.comm R C C ∘ₗ δ
+-- (S ⊗ S) ∘ flip ∘ comul : A → A ⊗ A
 
+/-
+comul is a left convolution inverse to 𝑭
+-/
 lemma comul_right_inv : toConv δ * toConv 𝑭 = 1 := by
   apply WithConv.ext
   simp only [LinearMap.convMul_def, LinearMap.convOne_def, ofConv_toConv]
@@ -123,9 +149,17 @@ end LinearMap
 namespace AlgHom
 variable [CommSemiring A] [CommSemiring C] [Bialgebra R C] [HopfAlgebra R A]
 
+/- maps into any other bialgebra form a group with convolution as the operation. these are
+the G(C) that are referenced in the FLT lecture notes.
+
+the inverse of such a map f : A → C is the map f ∘ S
+-/
+
+-- here we are declaring an inverse, but not actually proving anything about it
 instance convInv : Inv (WithConv <| A →ₐ[R] C) where
   inv f := toConv <| f.ofConv.comp (HopfAlgebra.antipodeAlgHom R A)
 
+-- proving that the inverse acts as an inverse
 instance convGroup : Group (WithConv <| A →ₐ[R] C) where
   inv_mul_cancel f := by
     have H : (lmul' R).comp (Algebra.TensorProduct.map f.ofConv f.ofConv) =
@@ -138,20 +172,28 @@ instance convGroup : Group (WithConv <| A →ₐ[R] C) where
     rw [H, AlgHom.comp_assoc, WithConv.ext_iff, ← AlgHom.toLinearMap_injective.eq_iff]
     change f.ofConv.toLinearMap.comp (toConv (antipode R (A := A)) * toConv LinearMap.id).ofConv =
       ofConv (1 : WithConv <| A →ₗ[R] C)
-    rw [LinearMap.antipode_mul_id]
+    -- rw [LinearMap.antipode_mul_id]
     ext
     simp
 
 instance [IsCocomm R A] : CommGroup (WithConv <| A →ₐ[R] C) where
 
+/-
+another restating of one of the first axioms
+-/
 lemma antipode_id_cancel :
     toConv (HopfAlgebra.antipodeAlgHom R A) * toConv (AlgHom.id R A) = 1 := by
-  apply WithConv.ofConv_injective
-  apply AlgHom.toLinearMap_injective
-  apply WithConv.toConv_injective
-  rw [AlgHom.toLinearMap_convMul, AlgHom.toLinearMap_convOne]
-  simp [LinearMap.antipode_mul_id]
+  ext _
+  exact congr($HopfAlgebra.mul_antipode_rTensor_comul _)
+-- above is my own proof, a golf
 
+-- this is new and the same form
+lemma id_antipode_cancel :
+    toConv (AlgHom.id R A) * toConv (HopfAlgebra.antipodeAlgHom R A) = 1 := by
+  ext _
+  exact congr($HopfAlgebra.mul_antipode_lTensor_comul _)
+
+-- counit ∘ S = counit
 lemma counitAlgHom_comp_antipodeAlgHom :
     (counitAlgHom R A).comp (HopfAlgebra.antipodeAlgHom R A) = counitAlgHom R A :=
   AlgHom.toLinearMap_injective <| by simp
